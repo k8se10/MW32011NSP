@@ -31,3 +31,11 @@ references/
 zone_dump/
 ff_dump/
 *.gdt
+
+# Internal-only technical detail (exact vulnerable function addresses, precise
+# buffer/offset values, exact fix implementation logic) -- NEVER committed/pushed
+# to the public repo before a fix for that specific item has shipped. See
+# SECURITY.md's "Redaction policy" and CODE_STANDARDS.md's "Documentation
+# Standards" for what belongs here vs. in the public re_notes/ docs.
+re_notes/INTERNAL_*.md
+re_notes/internal/

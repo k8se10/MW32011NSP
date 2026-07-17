@@ -74,6 +74,19 @@ dead ends. Additionally, for this project specifically:
   writeups, but none of them have been independently re-verified against this
   project's own copies of the game binaries yet. Don't let that distinction
   blur once implementation starts.
+- **Redaction: document every last detail, except the exact address/offset of
+  a still-unpatched vulnerable function, or (once fixed) the precise
+  bypass-enabling implementation detail of the fix.** Full policy lives in
+  `SECURITY.md`'s "Redaction policy" section — the short version: those two
+  categories go only in a gitignored `re_notes/INTERNAL_<name>.md` counterpart
+  to the public doc (never committed), and the public doc gets a one-line
+  pointer in their place. Everything else — CVE citations, architecture,
+  command tables, methodology, dead ends — stays fully public. When adding a
+  new public `re_notes/` doc that will need this split, create its
+  `INTERNAL_` counterpart as a real paired file from the start, not an
+  afterthought, and keep the two in sync as research progresses. Once an
+  item's fix ships and is verified, un-redact it in the public doc — the
+  split protects what's unfixed, not what's already shipped and working.
 
 ## Native patch code (C/C++)
 
