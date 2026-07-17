@@ -9,6 +9,34 @@ vulnerability-research and reverse-engineering trail behind each entry, and
 ## Unreleased
 
 ### Investigated-not-resolved
+- **Direct cross-check against Plutonium's own installed binaries
+  (2026-07-17, later session), plus disclosure-language and fact
+  corrections.** Prompted by the user's own realization that a client-side
+  bug in a byte-identical binary implies Plutonium isn't fully insulated
+  either — refined the doc's framing from a blanket "Plutonium isn't safe"
+  claim to the precise, defensible one: a vulnerable client-side code path
+  exists in the shared binary, and whether Plutonium's own deployment makes
+  it unreachable in practice is a separate, unconfirmed question this
+  project hasn't investigated. Then did the actual direct verification:
+  - Re-confirmed `iw5mp.exe` byte-identical via direct SHA256 (not just
+    citing the earlier claim) — this alone proves the confirmed MP
+    client-side finding is present in Plutonium's client too, no further
+    work needed for that specific question.
+  - Found and corrected two factual errors surfaced by this check: an
+    earlier claim that `iw5sp.exe` has no `WS2_32.dll` import was wrong
+    (verified via `dumpbin /imports`, both retail and Plutonium import it
+    identically — flags a new, unexplored raw-socket attack surface,
+    doesn't overturn the Steamworks-P2P conclusion which was reached via
+    call-site tracing); and a previously-recorded "~175KB smaller" size
+    difference for Plutonium's `iw5sp.exe` was wrong — actual delta is
+    2,320 bytes, the ~175KB figure was very likely a byte-difference COUNT
+    mistaken for a file-size difference. Also corrected in the sibling
+    `MW32011NCP` project's own notes (cross-reference policy).
+  - Launched a focused pass to determine whether Plutonium's own,
+    differently-compiled `iw5sp.exe` still has the confirmed P2P
+    receive-path vulnerability — in progress, not yet resolved as of this
+    entry; full detail (redacted while unresolved) in
+    `re_notes/vulnerability_research.md` and the internal notes.
 - **Four-fork netcode sweep across both binaries (2026-07-17, later
   session).** Prompted by reconciling "Activision patched Steam-Auth" against
   Plutonium's continued claims that vanilla Steam MW3 is unsafe — found the
