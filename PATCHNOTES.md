@@ -8,6 +8,30 @@ vulnerability-research and reverse-engineering trail behind each entry, and
 
 ## Unreleased
 
+### Investigated-not-resolved
+- **Steam-Auth (CVE-2018-20817) does NOT reproduce against this project's own
+  retail `iw5mp.exe` (2026-07-17, later session).** Full decompile +
+  disassembly of the real `"steamauth"` OOB packet handler (`FUN_005704b0`,
+  reached via the real dispatcher `FUN_005763f0`) found a correct, sound
+  length check (unsigned comparison, exactly matching the destination
+  buffer's 2048-byte size, and correctly rejecting a sign-extended negative
+  length rather than being bypassed by one) guarding the copy, with actual
+  ticket validation delegated entirely to Valve's own Steamworks SDK
+  (`SteamGameServer()`) rather than parsed by MW3's own code. This retail
+  Steam build is very likely a post-fix build (the CVE itself notes a fix
+  existed for versions before 2015-08-11). **There is no fix to write at this
+  location** — this candidate is closed as a non-issue, not implemented as a
+  patch. Full trail in `re_notes/vulnerability_research.md` and
+  `re_notes/INTERNAL_vulnerability_research.md`. Next candidates to verify:
+  Huffman (CVE-2018-10718), the MW3-specific 2019 protocol exploit, and
+  PartyHost/joinParty (CVE-2019-20893).
+- Also added a project-wide **redaction policy** (`SECURITY.md`, addendum in
+  `CODE_STANDARDS.md`): exact addresses of still-unpatched vulnerable code
+  stay in a gitignored `re_notes/INTERNAL_*.md` counterpart to each public
+  doc, never committed, until a fix ships — everything else (CVEs,
+  architecture, methodology) stays fully public. Repo itself remains public;
+  this is a content-level discipline, not an access-control change.
+
 ### Docs
 - **Project planning complete, scaffolding created (2026-07-17).** No code
   written yet. Established: scope (client-side hardening, both `iw5sp.exe`
