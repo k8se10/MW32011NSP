@@ -9,6 +9,48 @@ vulnerability-research and reverse-engineering trail behind each entry, and
 ## Unreleased
 
 ### Investigated-not-resolved
+- **Four-fork netcode sweep across both binaries (2026-07-17, later
+  session).** Prompted by reconciling "Activision patched Steam-Auth" against
+  Plutonium's continued claims that vanilla Steam MW3 is unsafe — found the
+  two aren't about the same bug (see `re_notes/vulnerability_research.md`'s
+  "Reconciling..." section for the community-documented "MemberJoin RCE"
+  citation). Independently swept both binaries' netcode for the same bug
+  class and found:
+  - **A second, currently-unpatched candidate vulnerability in `iw5mp.exe`**,
+    in what looks like a compressed/fragmented message reassembly routine —
+    an out-of-bounds write at an attacker-controlled offset, same
+    "checked but not enforced" shape as the first finding, plausibly the
+    real Huffman/CVE-2018-10718 bug class. A third, structurally similar,
+    not-yet-fully-confirmed candidate also found.
+  - **A separate, genuinely server-side per-client dispatcher subsystem
+    located in `iw5mp.exe`** (the one call site audited there is safe) —
+    the most plausible home for the community-reported "MemberJoin RCE,"
+    flagged as the strongest lead for the "malicious client attacks the
+    hosting player" direction, which no finding so far actually covers.
+  - **The original `iw5mp.exe` finding's reachability was corrected**: both
+    client-side (malicious server → connecting client) and via a malicious
+    demo file — NOT reachable from a malicious client against a hosting
+    player, as originally guessed from structure alone.
+  - **A new, independently confirmed, currently-unpatched vulnerability
+    found in `iw5sp.exe`'s Spec-Ops/Survival co-op networking** (Steamworks
+    P2P receive path) — notably has no bounds check at all, not even a
+    logged-but-unenforced one, and is confirmed reachable continuously
+    (once per frame) during any active P2P session with a malicious peer.
+  - **A real DoS/reflection-amplification gap found in `iw5mp.exe`'s
+    pre-auth OOB dispatcher**: zero rate-limiting anywhere in that table,
+    with `getinfo` showing a ~60-70x request/reply size factor — the same
+    shape CoD4x_Server's `SVC_RateLimit` was built to close. Concrete Phase
+    2 target.
+  - **Corrected a factual error in this project's own prior research**: a
+    previous claim that `iw5sp.exe` had its own "connection/challenge-
+    adjacent code" at two specific addresses was wrong — both were
+    unrelated unlock-notification code, a stale carry-forward of an already-
+    documented false lead. Retracted.
+  - Exact addresses/disassembly for every still-unpatched item above stay in
+    the gitignored `re_notes/INTERNAL_vulnerability_research.md` per this
+    project's redaction policy — no fixes written yet, this was a research
+    pass. Full detail (redacted appropriately) in
+    `re_notes/vulnerability_research.md`.
 - **Steam-Auth (CVE-2018-20817) does NOT reproduce against this project's own
   retail `iw5mp.exe` (2026-07-17, later session).** Full decompile +
   disassembly of the real `"steamauth"` OOB packet handler (`FUN_005704b0`,
