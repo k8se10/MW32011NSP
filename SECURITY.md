@@ -69,6 +69,45 @@ before the exact mechanism is public. This project does not follow a rigid
 fixed-day embargo — timing is judged per finding, biased toward disclosure once
 a fix is available and verified, not toward secrecy.
 
+## Redaction policy (this project's own docs and commits)
+
+**As open as possible, redacted only where it would expose the backbone of an
+unfixed protection.** This project is source-available and public by default
+(see `LICENSE`) — the goal is real transparency (anyone can audit that this
+patch does what it claims and isn't a backdoor), not secrecy for its own sake.
+The one narrow exception, decided 2026-07-17:
+
+- **Exact addresses/offsets of confirmed-or-candidate vulnerable code that
+  isn't fixed yet do NOT go in the public repo.** Everything else does:
+  which CVEs are targeted, public PoC citations, the general architecture
+  (e.g. "there's a real out-of-band packet dispatcher, here's its full
+  command table"), the phased plan, methodology, dead ends — all fully public
+  and detailed, same "document every last detail" standard as always.
+- **Practically**: every public doc that has a redacted item keeps a matching,
+  gitignored `re_notes/INTERNAL_<name>.md` counterpart with the full,
+  unredacted detail (see `.gitignore`) — never committed, never pushed. That
+  file is what real development work against a specific unfixed bug actually
+  uses; the public doc gets a one-line pointer in its place ("exact address
+  redacted, see internal notes"), not a placeholder that pretends nothing was
+  found.
+- **Once an item's fix ships and is verified working, un-redact it in the
+  public doc too** — copy the real detail over from the internal file. The
+  whole point of the split is protecting what's not yet fixed, not
+  permanently hiding finished, already-protected work. A public doc that's
+  still redacted for something long since fixed is a bug in this policy's
+  own upkeep, not correct behavior — fix it when noticed.
+- **The same logic applies, even after a fix ships, to the EXACT bypass-
+  relevant implementation detail of the fix itself** (e.g. an exact numeric
+  threshold or edge-case handling that, if published in full, would hand an
+  attacker a roadmap to finding a gap in the fix) — describe what class of
+  fix was applied and why (bounds-checking, rate limiting, etc.) at the same
+  level of honesty as everything else in this project, without necessarily
+  publishing the single line of code an attacker would most want to read
+  first. Use judgment here the same way "Responsible disclosure" above
+  already asks for it — biased toward disclosure, not toward secrecy, but
+  aware that this project's own credibility depends on the fixes actually
+  working, not just on maximal transparency about exactly how to defeat them.
+
 ## Not in scope
 
 - Ordinary gameplay bugs, crashes from normal (non-adversarial) play, or
