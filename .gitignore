@@ -1,0 +1,33 @@
+# Build outputs (whatever the eventual patch DLL is deployed straight into the
+# game root, not committed -- same convention as the sibling MW32011NCP project)
+obj/
+Debug/
+Release/
+*.obj
+*.pdb
+*.ilk
+*.log
+*.exp
+*.lib
+*.dll
+
+# Build outputs for dev-only test/research tools (not shipped, not part of the patch)
+tools/*/bin/
+tools/*/obj/
+
+# Packet captures / traffic dumps used to research or reproduce a vulnerability --
+# may contain real player data (IPs, etc.) even from the researcher's own sessions;
+# never meant to be committed. Summarize findings in re_notes/ instead.
+*.pcap
+*.pcapng
+
+# Third-party reference material (cloned locally for research only), same policy as
+# the sibling project -- learn from and independently re-verify, never redistribute
+# as part of this repo.
+references/
+
+# Extracted MW3 game assets -- Activision's copyrighted game data, never ours to
+# redistribute. Same defensive safety net as the sibling project.
+zone_dump/
+ff_dump/
+*.gdt
