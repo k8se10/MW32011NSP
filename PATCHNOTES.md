@@ -9,6 +9,26 @@ vulnerability-research and reverse-engineering trail behind each entry, and
 ## Unreleased
 
 ### Investigated-not-resolved
+- **Plutonium `iw5sp.exe` P2P vulnerability cross-check: CONFIRMED same bug
+  present, byte-for-byte identical machine code (2026-07-17, later
+  session).** Followed up the earlier Plutonium binary comparison by
+  independently importing and fully analyzing Plutonium's own `iw5sp.exe`
+  from scratch (not assuming any retail address carries over, since it's a
+  differently-compiled binary). Result: every instruction in the vulnerable
+  P2P-receive function is unmodified between retail and Plutonium's build —
+  not just the same bug class, the exact same machine code, despite the two
+  binaries differing elsewhere. Strongest available confirmation that this
+  is a shared-binary issue, not something either distribution introduced
+  independently.
+  - **Bonus finding, significant enough to flag on its own**: this pass
+    surfaced a real, substantial, actively-used raw-socket (`WS2_32.dll`)
+    networking subsystem in `iw5sp.exe` — dozens of real call sites across
+    distinct functions, not vestigial — entirely unexplored by any research
+    so far, and structurally separate from the Steamworks P2P path this
+    project has focused on. Strong candidate for the next research pass.
+  - Exact addresses/disassembly stay in the gitignored internal notes per
+    this project's redaction policy (still unpatched). Full detail
+    (redacted appropriately) in `re_notes/vulnerability_research.md`.
 - **Direct cross-check against Plutonium's own installed binaries
   (2026-07-17, later session), plus disclosure-language and fact
   corrections.** Prompted by the user's own realization that a client-side
