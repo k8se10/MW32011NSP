@@ -121,6 +121,27 @@ vulnerability-research and reverse-engineering trail behind each entry, and
   doc, never committed, until a fix ships — everything else (CVEs,
   architecture, methodology) stays fully public. Repo itself remains public;
   this is a content-level discipline, not an access-control change.
+- **`iw5mp_server.exe` (the dedicated-server binary) installed and directly
+  RE'd against `iw5mp.exe` for the first time (2026-07-21).** Previously
+  absent from this project's install; user installed it (App ID 42750) to
+  answer a real scoping question — since MW3 uses a listen-server model
+  where an ordinary player's own machine can run server code, does patching
+  `iw5mp.exe` alone actually protect a hosting player, or does the real
+  vulnerable logic only fully exist in the separate dedicated-server binary?
+  Found: the real OOB dispatcher exists in both (`FUN_004fdf60` server vs.
+  `FUN_005763f0` client), same command set and order, structurally identical
+  but at different addresses (independent compiles from shared source) — one
+  real asymmetry, a server-only `"queryserverinfo"` command absent from the
+  client's own dispatcher. The already-confirmed-safe Steam-Auth
+  (CVE-2018-20817) bounds check was independently re-verified present in the
+  server binary's own `steamauth` handler (`FUN_004f6eb0`) too — same sound
+  check-before-copy shape as the client's `FUN_005704b0`. **Net conclusion**:
+  near-identical structure/logic but not byte-identical and no shared
+  addresses — any future patch DLL that wants to protect a self-hosted
+  dedicated server, not just a P2P-hosting client, needs its own independent
+  signature scan and hook table against `iw5mp_server.exe` specifically.
+  Full detail in `re_notes/vulnerability_research.md`'s "Extended to
+  `iw5mp_server.exe`" section.
 
 ### Docs
 - **Project planning complete, scaffolding created (2026-07-17).** No code
