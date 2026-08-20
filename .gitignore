@@ -39,3 +39,5 @@ ff_dump/
 # Standards" for what belongs here vs. in the public re_notes/ docs.
 re_notes/INTERNAL_*.md
 re_notes/internal/
+# Local Codex steering mirror; the shared copy lives one directory above both repos.
+AGENTS.md
