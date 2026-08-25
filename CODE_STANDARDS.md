@@ -124,10 +124,17 @@ dead ends. Additionally, for this project specifically:
 - Only make changes explicitly requested or clearly required by the phase
   currently in progress — don't bundle Phase 2 hardening work into a Phase 1
   targeted bug fix, and vice versa.
-- No hardcoded addresses without at least the same documented rationale the
-  sibling project uses (see that project's `CONTRIBUTING.md`) — and given
-  this project's own higher bar for surviving future game updates
-  unattended, seriously consider whether a real runtime signature scanner is
-  worth building from the start here, rather than drifting into the same gap
-  by default. Not yet decided — flag it explicitly in any PR that hardcodes
-  an address, don't just do it silently.
+- **Hardcoded addresses, found once via static Ghidra analysis per binary,
+  are the deliberate policy here too (REVERSED 2026-08-25) — not a gap to
+  fill with a runtime scanner.** A runtime signature scanner has to walk the
+  game's own process memory searching for a byte sequence every time it
+  resolves, which is exactly the class of behavior VAC's own signature-based
+  heuristics are built to notice, and a real way to touch a protected/guarded
+  memory region unintentionally. A hardcoded address resolved offline (no
+  live process attached) and simply called at a known, fixed location has no
+  such runtime search surface — safer, and consistent with the sibling
+  project's own settled reasoning (`MW32011NCP/CONTRIBUTING.md`). This
+  project's own higher bar for surviving future game updates unattended
+  doesn't change that calculus — VAC safety takes priority, and static
+  analysis is re-run (not automated) when a game update shifts an offset,
+  same as the sibling project.
