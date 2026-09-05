@@ -67,6 +67,25 @@ vulnerability-research and reverse-engineering trail behind each entry, and
     behave correctly against actual malicious network traffic. That
     remains open.
 
+- **Finding 1's fix was silently never installing on its actual first live
+  execution (2026-09-05) — root-caused and fixed the same day.** The first
+  time this whole pipeline ever ran against a real, live game process (via
+  the sibling MW32011NCP project's new "greenlit" plugin path), the live
+  log showed `SteamNetworking() returned null` — `steam_api64.dll` was
+  loaded and exported the symbol, but Steamworks itself hadn't finished
+  initializing inside the game process yet at `DLL_PROCESS_ATTACH` time.
+  The fix silently gave up on that one attempt: it built, loaded, and
+  logged cleanly, but provided zero real protection. Fixed by splitting
+  Steamworks resolution out of the one-shot install path into its own
+  retry loop (a background thread, once/sec for up to 30sec, matching
+  MW32011NCP's own established event-driven/periodic-retry pattern for
+  "wait for something to become ready" cases) — a genuinely permanent
+  failure (missing export, hook-install failure) still gives up
+  immediately, only the transient "not ready yet" case retries.
+  Build-verified both distribution targets, redeployed. **Not yet
+  live-retested against a session where Steamworks actually becomes ready
+  during the retry window.**
+
 ### Investigated-not-resolved
 - **Plutonium `iw5sp.exe` P2P vulnerability cross-check: CONFIRMED same bug
   present, byte-for-byte identical machine code (2026-07-17, later
