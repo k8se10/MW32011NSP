@@ -61,8 +61,17 @@ public/untrusted servers. Before opening a PR, please read this file in full.
 
 - Windows only, same target binaries as the sibling project. Requires MSVC
   (Visual Studio Build Tools or Community, with the Windows 10 SDK) and MSBuild.
-- Both target binaries are 32-bit (x86) — build as Win32, not x64.
-- For live debugging, use a 32-bit debugger (e.g. `x32dbg`, not `x64dbg`).
+- Both target binaries are 64-bit — build as x64. (MW3 received its
+  first-ever binary update in 2026-09-03, recompiling from 32-bit; the
+  32-bit line can no longer run at all, so there is no Win32 target worth
+  building.)
+- For live debugging, use a 64-bit debugger (e.g. `x64dbg`).
+- Hook targets are resolved via runtime signature scanning
+  (`proxy_d3d9/src/signature_scan.h`/`.cpp`), a wildcarded byte-pattern scan
+  against the game's own main module, resolved once at process startup and
+  cached for the session — same policy and reasoning as the sibling
+  `MW32011NCP` project. Do not hardcode a fixed address for a new hook
+  target.
 
 ## Submitting a PR
 

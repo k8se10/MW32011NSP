@@ -70,10 +70,10 @@ dead ends. Additionally, for this project specifically:
   to follow.
 - **Distinguish "confirmed against our own binary" from "believed applicable
   from public research, not yet independently verified"** explicitly, every
-  time — the initial vulnerability research pass found real CVEs and public
-  writeups, but none of them have been independently re-verified against this
-  project's own copies of the game binaries yet. Don't let that distinction
-  blur once implementation starts.
+  time. Four findings are now confirmed this way (three vulnerable, one
+  confirmed safe) — but any NEW candidate starts as "believed applicable"
+  until it's independently re-verified against this project's own binary
+  copies. Don't let that distinction blur.
 - **Redaction: document every last detail, except the exact address/offset of
   a still-unpatched vulnerable function, or (once fixed) the precise
   bypass-enabling implementation detail of the fix.** Full policy lives in
@@ -124,17 +124,23 @@ dead ends. Additionally, for this project specifically:
 - Only make changes explicitly requested or clearly required by the phase
   currently in progress — don't bundle Phase 2 hardening work into a Phase 1
   targeted bug fix, and vice versa.
-- **Hardcoded addresses, found once via static Ghidra analysis per binary,
-  are the deliberate policy here too (REVERSED 2026-08-25) — not a gap to
-  fill with a runtime scanner.** A runtime signature scanner has to walk the
-  game's own process memory searching for a byte sequence every time it
-  resolves, which is exactly the class of behavior VAC's own signature-based
-  heuristics are built to notice, and a real way to touch a protected/guarded
-  memory region unintentionally. A hardcoded address resolved offline (no
-  live process attached) and simply called at a known, fixed location has no
-  such runtime search surface — safer, and consistent with the sibling
-  project's own settled reasoning (`MW32011NCP/CONTRIBUTING.md`). This
-  project's own higher bar for surviving future game updates unattended
-  doesn't change that calculus — VAC safety takes priority, and static
-  analysis is re-run (not automated) when a game update shifts an offset,
-  same as the sibling project.
+- **Hook targets are resolved via runtime signature scanning**
+  (`proxy_d3d9/src/signature_scan.h`/`.cpp`) — a wildcarded byte-pattern
+  scan against the game's own main module, resolved once at process
+  startup and cached for the session, not a continuous re-scan loop. This
+  is the current policy, matching the sibling `MW32011NCP` project's own
+  (see that project's `CODE_STANDARDS.md` for the full history: a runtime
+  scanner was framed as a real VAC-risk tradeoff at one point, but a
+  hardcode-only policy cannot survive a binary update at all — MW3's own
+  2026-09-03 recompile proved that concretely for the sibling project, and
+  the same reasoning applies here). Do not hardcode a fixed address for a
+  new hook target. Validate a signature actually resolved (non-null, sane
+  surrounding bytes) before installing a hook on it — fail loudly rather
+  than hooking garbage.
+- **Scope a fix as narrowly as the real call sites, not the whole enclosing
+  function or shared primitive.** A hook on a primitive shared by many
+  unrelated, legitimate call sites must be scoped by exact return address
+  (or another precise discriminator) to only the specific vulnerable call —
+  see `proxy_d3d9/src/matchdatadone_memberjoin_fix.cpp`'s own header comment
+  for a worked example (one shared copy primitive, two distinct vulnerable
+  call sites, one unrelated call left deliberately untouched).

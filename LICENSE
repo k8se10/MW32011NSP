@@ -1,4 +1,4 @@
-MW3 Netcode Security Project (MW3NSP) License
+MW32011NSP (MW3 2011 Netcode Security Patch) License
 Copyright (c) 2026 Kye Savage
 
 This license applies to the original source code of this project (the "Patch") —
@@ -63,7 +63,10 @@ public servers.
 --------------------------------------------------------------------------------
 Third-party components
 
-None yet — this section will be updated to match whatever this project actually
-vendors (e.g. a hooking library, if the eventual architecture needs one) once
-implementation begins. See the sibling `MW32011NCP` project's own `LICENSE` for
-the pattern this section follows once populated.
+This repository vendors the following third-party library, under its own
+license, unmodified in license terms — same library, same terms, as the
+sibling `MW32011NCP` project:
+
+- MinHook (`proxy_d3d9/third_party/minhook/`), including the bundled Hacker
+  Disassembler Engine (HDE) 32/64 C — see
+  `proxy_d3d9/third_party/minhook/LICENSE.txt` for full terms.
