@@ -8,6 +8,22 @@ vulnerability-research and reverse-engineering trail behind each entry, and
 
 ## Unreleased
 
+### What's New
+- **Three distribution modes for the netcode security fixes, all built from
+  the same fix-module source.** Standalone (`proxy_d3d9/`, this project's
+  own injected DLL), a plugin for the sibling
+  [MW32011NCP](https://github.com/k8se10/MW32011NCP) project
+  (`tools/ncp_plugin_netcode_fixes/`, builds to `mw32011nsp_security.dll`),
+  and — via that same plugin build — a "greenlit" default-on capability in
+  NCP itself: NCP's own plugin loader now auto-loads this exact filename
+  without requiring its normal third-party-plugin opt-in
+  (`[Plugins] Enabled=1`), a real change made on NCP's own side to its
+  `plugin_loader.cpp`. See NCP's `PLUGIN_API.md` for the full design and its
+  real caveat (filename matching isn't cryptographic). Build-verified: x64
+  `/t:Rebuild` (0 errors), `dumpbin` confirms `8664 machine (x64)` and both
+  required exports (`MW3NCP_PluginInit`/`MW3NCP_PluginShutdown`) present.
+  Not yet live-tested through NCP itself.
+
 ### Fixed
 - **First real fixes shipped: three of the four confirmed, unpatched netcode
   vulnerabilities are now patched via a standalone proxy DLL (`proxy_d3d9/`,
