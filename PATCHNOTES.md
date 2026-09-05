@@ -8,6 +8,49 @@ vulnerability-research and reverse-engineering trail behind each entry, and
 
 ## Unreleased
 
+### Fixed
+- **First real fixes shipped: three of the four confirmed, unpatched netcode
+  vulnerabilities are now patched via a standalone proxy DLL (`proxy_d3d9/`,
+  NSP's first-ever implementation code).** This project's Phase 1 stated
+  purpose -- ship real fixes, not just report bugs -- starts here.
+  - **Finding 1 (iw5sp.exe Steamworks P2P receive-path overflow)**: hooks the
+    real Steamworks SDK `ReadP2PPacket` interface method, scoped by return
+    address to only the one confirmed vulnerable call site, clamping the
+    attacker-reported packet size to the real 1200-byte destination buffer
+    before forwarding to the real implementation.
+  - **Findings 2+3 (iw5mp.exe `matchdatadone` dispatcher overflow and
+    `pa_memberjoin` party-join handler overflow)**: both share the same root
+    cause and the same underlying copy primitive, so both are fixed via one
+    shared hook on that primitive, scoped by exact return address to each
+    finding's own specific vulnerable call site (not the whole enclosing
+    function -- `pa_memberjoin` calls the same primitive a second time for
+    something unrelated, which this fix deliberately leaves untouched).
+    Length is clamped to each destination's real buffer size (1020 bytes,
+    1024-byte buffer; 512 bytes, matching buffer) before the copy runs.
+  - **Finding 4 (fragment-reassembly OOB write) is NOT fixed this pass** --
+    see `re_notes/vulnerability_research.md`'s own new entry for why: the
+    destination address is computed at runtime as a per-connection buffer
+    base plus an attacker-controlled offset, and the shared-primitive-hook
+    technique used for findings 2/3 can't recover that buffer's real bounds
+    from the address alone. A full-function replacement was considered and
+    rejected this pass -- it risks silently dropping undocumented behavior in
+    the function's own "magic-byte-range/version-compat checks" section,
+    which this project doesn't yet fully understand. Real next step, not
+    guessed at.
+  - **Build-verified: YES, as of this pass.** The implementation was
+    originally produced in an isolated environment that could not run
+    MSBuild at all; a follow-up pass fixed one real bug found in that
+    process (an invalid `--` inside an XML comment in `proxy_d3d9.vcxproj`,
+    which MSBuild's XML parser rejects outright), then completed a clean
+    `/t:Rebuild` (0 errors) and confirmed via `dumpbin /headers` that the
+    output is a real x64 DLL exporting all 16 required D3D9 functions.
+    Independently re-verified the P2P fix's own 52-byte signature against a
+    fresh raw byte dump of the live binary -- exact match, not just internally
+    self-consistent. **Still NOT live-tested** -- build success confirms the
+    code compiles and the signatures/offsets are real, not that the fixes
+    behave correctly against actual malicious network traffic. That
+    remains open.
+
 ### Investigated-not-resolved
 - **Plutonium `iw5sp.exe` P2P vulnerability cross-check: CONFIRMED same bug
   present, byte-for-byte identical machine code (2026-07-17, later
