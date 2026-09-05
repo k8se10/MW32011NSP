@@ -42,6 +42,7 @@
 #include <windows.h>
 #include <cstdio>
 #include <intrin.h>
+#include <memory>
 
 namespace {
 
@@ -90,6 +91,120 @@ bool __fastcall Hook_ReadP2PPacket(void* thisPtr, void* pubDest, uint32_t cubDes
     return g_realReadP2PPacket(thisPtr, pubDest, cubDest, pcubMsgSize, psteamIDRemote, nChannel);
 }
 
+// Tri-state outcome for the Steamworks-resolution-and-hook-install step, kept
+// separate from the (one-time, not retry-worthy) signature scan above. Real,
+// live-observed 2026-09-05: on the very first live execution of this whole
+// pipeline (via NCP's greenlit plugin), SteamNetworking() came back null --
+// steam_api64.dll was loaded and exported the symbol, but Steamworks itself
+// wasn't initialized yet at DLL_PROCESS_ATTACH time. This project's own
+// header comment for InstallNetcodeFixes() previously claimed "no need to
+// wait... DLL_PROCESS_ATTACH is fine" -- true for the signature scan (the
+// module is always fully mapped by then) but WRONG for anything depending on
+// the game's own Steamworks init, which runs later in the game's own
+// startup, well after this DLL's DllMain has already returned. See
+// TryInstallP2PFixRetryLoop below for the fix.
+enum class SteamResolveOutcome { Success, Retry, HardFail };
+
+SteamResolveOutcome TryResolveSteamAndInstallHook(const FixHostServices& host)
+{
+    // Resolve the REAL Steamworks SDK export directly -- SteamNetworking() is a
+    // genuine, publicly-documented export of steam_api64.dll, confirmed via this
+    // project's own Ghidra symbol lookup to be a real EXTERNAL (not internal game
+    // code) symbol. Calling it ourselves, exactly the way the game's own code
+    // does, is standard, correct Steamworks SDK usage -- not reading or writing
+    // any gameplay-entity memory, just the same public API surface any legitimate
+    // Steamworks-integrated tool already uses.
+    HMODULE steamApi = GetModuleHandleA("steam_api64.dll");
+    if (!steamApi) {
+        // Transient -- the game may not have loaded steam_api64.dll yet this
+        // early in process startup. Worth retrying, not a hard failure.
+        return SteamResolveOutcome::Retry;
+    }
+    using SteamNetworking_t = void*(__fastcall*)();
+    auto steamNetworking = reinterpret_cast<SteamNetworking_t>(GetProcAddress(steamApi, "SteamNetworking"));
+    if (!steamNetworking) {
+        // The DLL is loaded but genuinely lacks the export -- a version
+        // mismatch or real problem, not something a retry will fix.
+        host.Log("[nsp-p2p-fix] FAILED: steam_api64.dll missing SteamNetworking export");
+        return SteamResolveOutcome::HardFail;
+    }
+    void* iface = steamNetworking();
+    if (!iface) {
+        // Real, live-confirmed transient case (see this function's own header
+        // comment) -- steam_api64.dll is loaded and exports the symbol, but
+        // Steamworks itself hasn't finished initializing inside the game yet.
+        return SteamResolveOutcome::Retry;
+    }
+
+    // Real vtable layout confirmed via this project's own decompile of the
+    // vulnerable call site: IsP2PPacketAvailable at interface+0x8, ReadP2PPacket
+    // at interface+0x10 (both real Valve Steamworks SDK slots, matching what the
+    // game's own code already dispatches through -- see this file's own header
+    // comment for the exact decompiled call).
+    void** vtable = *reinterpret_cast<void***>(iface);
+    void* readP2PPacketAddr = vtable[2]; // +0x10 / sizeof(void*) = index 2
+
+    void* original = nullptr;
+    if (!host.InstallHook(readP2PPacketAddr, reinterpret_cast<void*>(&Hook_ReadP2PPacket), &original)) {
+        char buf[256];
+        sprintf_s(buf, "[nsp-p2p-fix] FAILED: InstallHook failed for ReadP2PPacket @ %p", readP2PPacketAddr);
+        host.Log(buf);
+        return SteamResolveOutcome::HardFail;
+    }
+    g_realReadP2PPacket = reinterpret_cast<ReadP2PPacket_t>(original);
+
+    char buf[256];
+    sprintf_s(buf, "[nsp-p2p-fix] Installed. FUN_1402893f0 @ 0x%llX (body size 0x%zX), "
+              "ReadP2PPacket @ %p hooked, scoped clamp to %zu bytes.",
+              static_cast<unsigned long long>(g_p2pFuncStart), kP2PFuncBodySize,
+              readP2PPacketAddr, kRealDestBufferSize);
+    host.Log(buf);
+    return SteamResolveOutcome::Success;
+}
+
+// Retry state + thread proc kept in a small heap-allocated block passed via
+// lpParameter -- FixHostServices is plain function pointers (no captured
+// state), safe to copy and outlive InstallP2PFix's own stack frame this way.
+// Matches this codebase's existing event-driven/periodic-retry background-
+// thread convention (NCP's own issue #87 architecture: a dedicated thread per
+// distinct "wait for something to become ready" job, plain Sleep()-paced
+// where there's no natural wake event to use instead).
+struct RetryThreadArgs {
+    FixHostServices host;
+};
+
+constexpr int kMaxRetryAttempts = 30;   // ~30s total at 1s apart -- generous
+constexpr DWORD kRetryIntervalMs = 1000; // for real Steamworks init timing,
+                                          // still bounded so a genuinely
+                                          // broken/missing Steamworks doesn't
+                                          // retry forever.
+
+DWORD WINAPI P2PFixRetryThreadProc(LPVOID param)
+{
+    std::unique_ptr<RetryThreadArgs> args(static_cast<RetryThreadArgs*>(param));
+    for (int attempt = 1; attempt <= kMaxRetryAttempts; ++attempt) {
+        Sleep(kRetryIntervalMs);
+        SteamResolveOutcome outcome = TryResolveSteamAndInstallHook(args->host);
+        if (outcome == SteamResolveOutcome::Success) {
+            char buf[192];
+            sprintf_s(buf, "[nsp-p2p-fix] Steamworks became ready on retry attempt %d/%d.",
+                      attempt, kMaxRetryAttempts);
+            args->host.Log(buf);
+            return 0;
+        }
+        if (outcome == SteamResolveOutcome::HardFail) {
+            return 0; // TryResolveSteamAndInstallHook already logged the reason
+        }
+        // Retry: keep looping.
+    }
+    char buf[192];
+    sprintf_s(buf, "[nsp-p2p-fix] FAILED: Steamworks never became ready after %d attempts "
+              "(~%d sec) -- giving up. Finding 1's fix is NOT active this session.",
+              kMaxRetryAttempts, kMaxRetryAttempts * static_cast<int>(kRetryIntervalMs / 1000));
+    args->host.Log(buf);
+    return 0;
+}
+
 } // namespace
 
 void InstallP2PFix(const FixHostServices& host)
@@ -117,52 +232,26 @@ void InstallP2PFix(const FixHostServices& host)
     }
     g_p2pFuncStart = funcResult.address;
 
-    // Resolve the REAL Steamworks SDK export directly -- SteamNetworking() is a
-    // genuine, publicly-documented export of steam_api64.dll, confirmed via this
-    // project's own Ghidra symbol lookup to be a real EXTERNAL (not internal game
-    // code) symbol. Calling it ourselves, exactly the way the game's own code
-    // does, is standard, correct Steamworks SDK usage -- not reading or writing
-    // any gameplay-entity memory, just the same public API surface any legitimate
-    // Steamworks-integrated tool already uses.
-    HMODULE steamApi = GetModuleHandleA("steam_api64.dll");
-    if (!steamApi) {
-        host.Log("[nsp-p2p-fix] FAILED: steam_api64.dll not loaded yet -- Steamworks "
-                 "may not be initialized this early. Fix not installed this pass.");
-        return;
-    }
-    using SteamNetworking_t = void*(__fastcall*)();
-    auto steamNetworking = reinterpret_cast<SteamNetworking_t>(GetProcAddress(steamApi, "SteamNetworking"));
-    if (!steamNetworking) {
-        host.Log("[nsp-p2p-fix] FAILED: steam_api64.dll missing SteamNetworking export");
-        return;
-    }
-    void* iface = steamNetworking();
-    if (!iface) {
-        host.Log("[nsp-p2p-fix] FAILED: SteamNetworking() returned null -- interface not ready yet");
-        return;
+    // Fast path: try once synchronously first (covers the case where
+    // Steamworks is already up by the time this runs -- no need to pay for a
+    // thread + a full second's delay in the common case once this project's
+    // own load-ordering settles). Only fall back to the retry thread if this
+    // first attempt reports a genuinely transient "not ready yet" condition.
+    SteamResolveOutcome outcome = TryResolveSteamAndInstallHook(host);
+    if (outcome == SteamResolveOutcome::Success || outcome == SteamResolveOutcome::HardFail) {
+        return; // Success already logged its own confirmation; HardFail already logged why.
     }
 
-    // Real vtable layout confirmed via this project's own decompile of the
-    // vulnerable call site: IsP2PPacketAvailable at interface+0x8, ReadP2PPacket
-    // at interface+0x10 (both real Valve Steamworks SDK slots, matching what the
-    // game's own code already dispatches through -- see this file's own header
-    // comment for the exact decompiled call).
-    void** vtable = *reinterpret_cast<void***>(iface);
-    void* readP2PPacketAddr = vtable[2]; // +0x10 / sizeof(void*) = index 2
-
-    void* original = nullptr;
-    if (!host.InstallHook(readP2PPacketAddr, reinterpret_cast<void*>(&Hook_ReadP2PPacket), &original)) {
-        char buf[256];
-        sprintf_s(buf, "[nsp-p2p-fix] FAILED: InstallHook failed for ReadP2PPacket @ %p", readP2PPacketAddr);
-        host.Log(buf);
+    host.Log("[nsp-p2p-fix] Steamworks not ready yet (steam_api64.dll not loaded, or "
+             "SteamNetworking() returned null) -- starting a background retry (1/sec, "
+             "up to 30sec) instead of giving up. Real, live-observed timing issue "
+             "(2026-09-05): DLL_PROCESS_ATTACH runs before the game's own Steamworks init.");
+    auto* args = new RetryThreadArgs{host};
+    HANDLE thread = CreateThread(nullptr, 0, &P2PFixRetryThreadProc, args, 0, nullptr);
+    if (!thread) {
+        host.Log("[nsp-p2p-fix] FAILED: CreateThread for the Steamworks retry loop itself failed");
+        delete args;
         return;
     }
-    g_realReadP2PPacket = reinterpret_cast<ReadP2PPacket_t>(original);
-
-    char buf[256];
-    sprintf_s(buf, "[nsp-p2p-fix] Installed. FUN_1402893f0 @ 0x%llX (body size 0x%zX), "
-              "ReadP2PPacket @ %p hooked, scoped clamp to %zu bytes.",
-              static_cast<unsigned long long>(g_p2pFuncStart), kP2PFuncBodySize,
-              readP2PPacketAddr, kRealDestBufferSize);
-    host.Log(buf);
+    CloseHandle(thread); // detached -- the thread proc owns `args` and frees it (unique_ptr) on exit
 }

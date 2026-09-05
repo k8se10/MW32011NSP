@@ -28,6 +28,16 @@ struct FixHostServices {
 // device the way MW32011NCP's own rendering/input hooks do -- call this as soon as
 // `host.GetGameModuleBase()` will return a valid, fully-loaded module, i.e.
 // DLL_PROCESS_ATTACH is fine).
+//
+// CORRECTED 2026-09-05, live-observed on this pipeline's actual first live
+// execution: DLL_PROCESS_ATTACH being fine for the SIGNATURE SCAN (the module
+// is always fully mapped by then) does NOT mean every fix's OWN dependencies
+// are ready that early. Finding 1's fix additionally depends on the game's
+// own Steamworks init (SteamNetworking() returning a real interface), which
+// runs later in the game's own startup than DllMain -- p2p_fix.cpp now
+// retries on a background thread rather than assuming this call happens late
+// enough. Call this function itself early is still correct; just don't
+// assume every fix inside it can finish resolving synchronously.
 void InstallNetcodeFixes(const FixHostServices& host);
 
 // Individual fix installers -- each resolves its own target address(es) via the
